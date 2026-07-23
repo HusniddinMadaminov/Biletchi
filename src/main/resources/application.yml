@@ -1,0 +1,53 @@
+spring:
+  application:
+    name: railway-ticket-bot
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/ticketbot}
+    username: ${SPRING_DATASOURCE_USERNAME:ticketbot}
+    password: ${SPRING_DATASOURCE_PASSWORD:ticketbot}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+
+server:
+  port: ${SERVER_PORT:8080}
+
+telegram:
+  bot:
+    token: ${TELEGRAM_BOT_TOKEN:}
+    username: ${TELEGRAM_BOT_USERNAME:}
+
+railway:
+  base-url: ${RAILWAY_BASE_URL:https://eticket.railway.uz}
+  connect-timeout-ms: ${RAILWAY_CONNECT_TIMEOUT_MS:5000}
+  read-timeout-ms: ${RAILWAY_READ_TIMEOUT_MS:10000}
+  retry:
+    max-attempts: 4
+    initial-backoff-ms: 2000
+    multiplier: 2.0
+
+ticketbot:
+  search:
+    default-period-days: 30
+    max-period-days: 60
+    date-batch-size: 4
+  monitoring:
+    interval-cron: "0 */10 * * * *"
+    batch-size: 100
+    manual-check-cooldown-seconds: 120
+  scheduling:
+    pool-size: 8
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info

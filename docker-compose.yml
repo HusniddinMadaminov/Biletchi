@@ -1,0 +1,36 @@
+version: "3.8"
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ticketbot
+      POSTGRES_USER: ticketbot
+      POSTGRES_PASSWORD: ticketbot
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ticketbot"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  bot:
+    build: .
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/ticketbot
+      SPRING_DATASOURCE_USERNAME: ticketbot
+      SPRING_DATASOURCE_PASSWORD: ticketbot
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
+      TELEGRAM_BOT_USERNAME: ${TELEGRAM_BOT_USERNAME}
+      RAILWAY_BASE_URL: ${RAILWAY_BASE_URL:-https://eticket.railway.uz}
+    ports:
+      - "8080:8080"
+
+volumes:
+  postgres-data:
