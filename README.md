@@ -38,9 +38,13 @@ TicketMonitoringScheduler -> TicketMonitoringService -> MonitoringLockService / 
 ## Running locally
 
 ```bash
-export TELEGRAM_BOT_TOKEN=xxxx:yyyy
+cp .env.example .env   # then put your real BotFather token into .env
 docker compose up --build
 ```
+
+Docker Compose reads `.env` automatically. `.env` is gitignored - never
+commit the real token; if a token ever leaks, revoke it via @BotFather
+(`/revoke`) and issue a new one.
 
 This starts PostgreSQL, runs Flyway migrations, and starts the bot on port 8080
 (health check at `/actuator/health`).

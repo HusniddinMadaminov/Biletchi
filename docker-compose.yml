@@ -3,6 +3,7 @@ version: "3.8"
 services:
   postgres:
     image: postgres:16-alpine
+    restart: unless-stopped
     environment:
       POSTGRES_DB: ticketbot
       POSTGRES_USER: ticketbot
@@ -19,6 +20,7 @@ services:
 
   bot:
     build: .
+    restart: unless-stopped
     depends_on:
       postgres:
         condition: service_healthy
