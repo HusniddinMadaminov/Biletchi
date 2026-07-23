@@ -1,11 +1,11 @@
 package uz.railway.ticketbot.railway
 
-import com.fasterxml.jackson.databind.JsonNode
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Component
 import uz.railway.ticketbot.config.RailwayProperties
 import uz.railway.ticketbot.config.TicketBotProperties
 import uz.railway.ticketbot.railway.dto.EticketTrainDetails
+import uz.railway.ticketbot.railway.dto.EticketTrainSummary
 import uz.railway.ticketbot.railway.mapper.EticketMapper
 import uz.railway.ticketbot.search.NearestLowerSeatFinder
 import uz.railway.ticketbot.search.TicketFilters
@@ -13,6 +13,12 @@ import uz.railway.ticketbot.search.TicketSearchResult
 import java.time.LocalDate
 import java.time.LocalDateTime
 
+/**
+ * Implements the site's own search flow (verified from HAR captures):
+ * first POST /api/v3/handbook/trains/list for the date/route, then - only
+ * for trains that have free seats at all - POST /api/v1/handbook/trains to
+ * get exact free seat numbers per car.
+ */
 @Component
 class EticketRailwayProvider(
     private val client: EticketRailwayClient,
@@ -24,27 +30,18 @@ class EticketRailwayProvider(
     private val log = LoggerFactory.getLogger(EticketRailwayProvider::class.java)
     private val finder = NearestLowerSeatFinder(botProperties.search.dateBatchSize)
 
-    // Train numbers look like "056Ж" / "760Ф" - 3 digits plus an optional letter.
-    // Used to tell train numbers apart from car numbers ("09") when defensively
-    // parsing the not-yet-verified train-list response.
-    private val trainNumberPattern = Regex("""^\d{3}\p{L}?$""")
-
-    override suspend fun searchTrains(fromStationCode: String, toStationCode: String, date: LocalDate): List<RailwayTrain> {
-        val trainNumbers = listTrainNumbers(fromStationCode, toStationCode, date)
-        return trainNumbers.mapNotNull { number ->
-            fetchTrainDetails(fromStationCode, toStationCode, date, number)?.let { details ->
-                RailwayTrain(
-                    trainNumber = details.number.ifBlank { number },
-                    trainName = details.brandName ?: details.brand,
-                    fromStationCode = fromStationCode,
-                    toStationCode = toStationCode,
-                    date = date,
-                    departureTime = mapper.parseDateTime(details.departureDate) ?: date.atStartOfDay(),
-                    arrivalTime = mapper.parseDateTime(details.arrivalDate)
-                )
-            }
+    override suspend fun searchTrains(fromStationCode: String, toStationCode: String, date: LocalDate): List<RailwayTrain> =
+        listTrains(fromStationCode, toStationCode, date).map { summary ->
+            RailwayTrain(
+                trainNumber = summary.number,
+                trainName = summary.brand,
+                fromStationCode = fromStationCode,
+                toStationCode = toStationCode,
+                date = date,
+                departureTime = mapper.parseDateTime(summary.departureDate) ?: date.atStartOfDay(),
+                arrivalTime = mapper.parseDateTime(summary.arrivalDate)
+            )
         }
-    }
 
     override suspend fun getAvailableCars(train: RailwayTrain): List<RailwayCar> {
         val details = fetchTrainDetails(train.fromStationCode, train.toStationCode, train.date, train.trainNumber)
@@ -83,18 +80,18 @@ class EticketRailwayProvider(
         date: LocalDate,
         filters: TicketFilters
     ): List<TicketSearchResult> {
-        // If the user pinned train numbers, the unverified train-list endpoint
-        // can be skipped entirely - the verified per-train endpoint is enough.
-        val trainNumbers = if (filters.trainNumbers.isNotEmpty()) {
-            filters.trainNumbers.toList()
-        } else {
-            listTrainNumbers(fromStationCode, toStationCode, date)
-        }
+        val summaries = listTrains(fromStationCode, toStationCode, date)
+            .filter { filters.trainNumbers.isEmpty() || it.number in filters.trainNumbers }
+            // An empty cars list in the summary means the train is sold out - skip the details call.
+            .filter { it.cars.isNotEmpty() }
 
         val offers = mutableListOf<TicketSearchResult>()
-        for (trainNumber in trainNumbers) {
-            val details = fetchTrainDetails(fromStationCode, toStationCode, date, trainNumber) ?: continue
-            val departureTime = mapper.parseDateTime(details.departureDate) ?: date.atStartOfDay()
+        for (summary in summaries) {
+            val summaryDeparture = mapper.parseDateTime(summary.departureDate)
+            if (summaryDeparture != null && !isWithinDepartureWindow(summaryDeparture, filters)) continue
+
+            val details = fetchTrainDetails(fromStationCode, toStationCode, date, summary.number) ?: continue
+            val departureTime = mapper.parseDateTime(details.departureDate) ?: summaryDeparture ?: date.atStartOfDay()
             if (!isWithinDepartureWindow(departureTime, filters)) continue
 
             for (group in details.carGroup) {
@@ -113,10 +110,10 @@ class EticketRailwayProvider(
                         toStationCode = toStationCode,
                         toStationName = toStationName,
                         date = date,
-                        trainNumber = details.number.ifBlank { trainNumber },
-                        trainName = details.brandName ?: details.brand,
+                        trainNumber = details.number.ifBlank { summary.number },
+                        trainName = details.brandName ?: details.brand ?: summary.brand,
                         departureTime = departureTime,
-                        arrivalTime = mapper.parseDateTime(details.arrivalDate),
+                        arrivalTime = mapper.parseDateTime(details.arrivalDate) ?: mapper.parseDateTime(summary.arrivalDate),
                         carType = carType,
                         carNumber = car.number,
                         lowerSeatNumbers = lowerSeats,
@@ -130,6 +127,14 @@ class EticketRailwayProvider(
         return offers.sortedWith(TicketSearchResult.DISPLAY_ORDER)
     }
 
+    private suspend fun listTrains(fromStationCode: String, toStationCode: String, date: LocalDate): List<EticketTrainSummary> {
+        val response = client.getTrainsList(fromStationCode, toStationCode, date)
+        if (response.error != null) {
+            log.warn("railway.uz returned error for train list {}->{} on {}: {}", fromStationCode, toStationCode, date, response.error)
+        }
+        return response.data?.directions?.forward?.trains ?: emptyList()
+    }
+
     private suspend fun fetchTrainDetails(
         fromStationCode: String,
         toStationCode: String,
@@ -141,30 +146,6 @@ class EticketRailwayProvider(
             log.warn("railway.uz returned error for train {} on {}: {}", trainNumber, date, response.error)
         }
         return response.data?.train
-    }
-
-    /**
-     * Train numbers for a date/route via the not-yet-verified list endpoint.
-     * The response shape is unconfirmed, so it is parsed defensively: every
-     * "number" field anywhere in the tree that looks like a train number
-     * (3 digits + optional letter) is collected. Once a HAR capture of the
-     * train search page confirms the real shape, replace this with typed DTOs.
-     */
-    private suspend fun listTrainNumbers(fromStationCode: String, toStationCode: String, date: LocalDate): List<String> {
-        val root: JsonNode = try {
-            client.searchTrainsRaw(fromStationCode, toStationCode, date)
-        } catch (ex: Exception) {
-            log.warn("Train list request failed for {}->{} on {} ({}). If this persists, capture the train-search page traffic to verify the endpoint.", fromStationCode, toStationCode, date, ex.message)
-            throw ex
-        }
-        val numbers = root.findValues("number")
-            .mapNotNull { it.takeIf(JsonNode::isTextual)?.asText() }
-            .filter { trainNumberPattern.matches(it) }
-            .distinct()
-        if (numbers.isEmpty()) {
-            log.warn("No train numbers recognised in train-list response for {}->{} on {}; the endpoint shape may differ from the assumed one.", fromStationCode, toStationCode, date)
-        }
-        return numbers
     }
 
     private fun isWithinDepartureWindow(departureTime: LocalDateTime, filters: TicketFilters): Boolean {

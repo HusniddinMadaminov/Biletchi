@@ -5,18 +5,22 @@ import java.math.BigDecimal
 
 /**
  * Wire format for eticket.railway.uz, reverse-engineered from real browser
- * traffic (HAR capture, 2026-07-23) against POST /api/v1/handbook/trains.
- * That endpoint returns, for one train on one date/route, every car group
- * with its per-car list of FREE seat numbers ("places") - which is exactly
- * what the lower-seat search needs.
+ * traffic (HAR captures, 2026-07-23). The site's search flow, in call
+ * order, is:
  *
- * Request (verified):
- *   {"depDate":"2026-08-20","depStationCode":"2900790","arvStationCode":"2900000",
- *    "trainNumber":"056Ж","trainId":null}
+ *  1. POST /api/v1/auth/login  {"username","password"} + captcha-response
+ *     header (reCAPTCHA) -> {"token" (1h), "refreshToken" (30d), ...}
+ *  2. POST /api/v3/handbook/trains/list
+ *     {"directions":{"forward":{"date":"2026-08-20","depStationCode":"2900790",
+ *     "arvStationCode":"2900000"}}} -> all trains for the date/route, each
+ *     with per-car-type freeSeats/tariff summaries
+ *  3. POST /api/v1/handbook/trains {"depDate","depStationCode",
+ *     "arvStationCode","trainNumber","trainId":null} -> one train's cars
+ *     with exact FREE seat numbers ("places") - the lower-seat source of truth
  *
- * Response (verified): {"data":{"train":{...,"carGroup":[{"type","typeShow","tariff",
- *   "cars":[{"number","places":[...],"schema":{...},"seatDetail":{...}}]}],
- *   "departureDate":"20.08.2026 19:20",...},"route":{...}},"error":null}
+ * Both search endpoints (2 and 3) are verified against captured responses;
+ * fixtures of those responses live under src/test/resources/eticket and are
+ * parsed in tests.
  */
 data class EticketTrainDetailsRequest(
     val depDate: String,          // ISO: "2026-08-20"
@@ -98,4 +102,83 @@ data class EticketSeatDetail(
     val freeComp: Int? = null,
     val down: Int? = null,
     val up: Int? = null
+)
+
+// ---- POST /api/v3/handbook/trains/list (verified) ----
+
+data class EticketTrainsListRequest(
+    val directions: EticketTrainsListDirections
+) {
+    companion object {
+        fun forward(date: String, depStationCode: String, arvStationCode: String) =
+            EticketTrainsListRequest(
+                EticketTrainsListDirections(
+                    EticketTrainsListForward(date, depStationCode, arvStationCode)
+                )
+            )
+    }
+}
+
+data class EticketTrainsListDirections(val forward: EticketTrainsListForward)
+
+data class EticketTrainsListForward(
+    val date: String,            // ISO: "2026-08-20"
+    val depStationCode: String,
+    val arvStationCode: String
+)
+
+@JsonIgnoreProperties(ignoreUnknown = true)
+data class EticketTrainsListResponse(
+    val data: EticketTrainsListData? = null,
+    val error: Any? = null
+)
+
+@JsonIgnoreProperties(ignoreUnknown = true)
+data class EticketTrainsListData(
+    val directions: EticketTrainsListDirectionsData? = null
+)
+
+@JsonIgnoreProperties(ignoreUnknown = true)
+data class EticketTrainsListDirectionsData(
+    val forward: EticketTrainsListForwardData? = null
+)
+
+@JsonIgnoreProperties(ignoreUnknown = true)
+data class EticketTrainsListForwardData(
+    val trains: List<EticketTrainSummary> = emptyList()
+)
+
+/**
+ * One train row of the list response. An empty [cars] list means the train
+ * has no free seats at all (seen for sold-out 751М in the capture), so the
+ * per-train details call can be skipped entirely.
+ */
+@JsonIgnoreProperties(ignoreUnknown = true)
+data class EticketTrainSummary(
+    val type: String? = null,          // "EX", "В-СКОР"
+    val number: String = "",           // "056Ж"
+    val departureDate: String? = null, // "20.08.2026 19:20"
+    val arrivalDate: String? = null,
+    val timeOnWay: String? = null,
+    val brand: String? = null,         // "Passenger", "Jaloliddin Manguberdi"
+    val originRoute: EticketTrainRouteNames? = null,
+    val subRoute: EticketRoute? = null,
+    val cars: List<EticketCarSummary> = emptyList(),
+    val trainId: String? = null,
+    val comment: String? = null
+)
+
+@JsonIgnoreProperties(ignoreUnknown = true)
+data class EticketCarSummary(
+    val type: String? = null,          // "Sleeper", "Coupe"
+    val freeSeats: Int = 0,
+    val tariffs: List<EticketTariff> = emptyList(),
+    val seatDetail: EticketSeatDetail? = null
+)
+
+@JsonIgnoreProperties(ignoreUnknown = true)
+data class EticketTariff(
+    val classServiceType: String? = null, // "3П", "2К"
+    val freeSeats: Int = 0,
+    val tariff: BigDecimal? = null        // UZS
 )

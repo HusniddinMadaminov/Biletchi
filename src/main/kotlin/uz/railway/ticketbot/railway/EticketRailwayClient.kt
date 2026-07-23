@@ -1,6 +1,5 @@
 package uz.railway.ticketbot.railway
 
-import com.fasterxml.jackson.databind.JsonNode
 import kotlinx.coroutines.reactor.awaitSingle
 import org.slf4j.LoggerFactory
 import org.springframework.http.HttpStatusCode
@@ -12,6 +11,8 @@ import uz.railway.ticketbot.common.retry.TransientErrorRetry
 import uz.railway.ticketbot.config.RailwayProperties
 import uz.railway.ticketbot.railway.dto.EticketTrainDetailsRequest
 import uz.railway.ticketbot.railway.dto.EticketTrainDetailsResponse
+import uz.railway.ticketbot.railway.dto.EticketTrainsListRequest
+import uz.railway.ticketbot.railway.dto.EticketTrainsListResponse
 import uz.railway.ticketbot.railway.exception.RailwayAuthException
 import uz.railway.ticketbot.railway.exception.RailwayClientException
 import uz.railway.ticketbot.railway.exception.RailwayTransientException
@@ -19,19 +20,19 @@ import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 
 /**
- * HTTP layer over eticket.railway.uz.
+ * HTTP layer over eticket.railway.uz. Both endpoints below are VERIFIED
+ * against real browser traffic (HAR captures, 2026-07-23):
  *
- * [getTrainDetails] (POST /api/v1/handbook/trains) is VERIFIED against real
- * browser traffic (HAR capture, 2026-07-23): it returns every car of one
- * train with its free seat numbers. The captured request carried a Bearer
- * token of a logged-in user; whether the endpoint also answers anonymously
- * is not yet known - if it does not, set RAILWAY_AUTH_TOKEN.
+ *  - [getTrainsList]  POST /api/v3/handbook/trains/list - all trains for a
+ *    date/route with per-car-type free seat summaries
+ *  - [getTrainDetails] POST /api/v1/handbook/trains - one train's cars with
+ *    exact free seat numbers
  *
- * [searchTrainsRaw] (the per-date train list) is NOT yet verified - the HAR
- * only covered the seats page. Its path/body follow the shape commonly seen
- * for this site but must be confirmed with a HAR capture of the train
- * search page; until then the response is handled as raw JSON and parsed
- * defensively in [EticketRailwayProvider].
+ * The captured requests carried a logged-in user's Bearer token (the site's
+ * login endpoint requires reCAPTCHA, so the bot cannot log in by itself).
+ * Whether these two endpoints also answer anonymously is not yet known - if
+ * they do not, set RAILWAY_AUTH_TOKEN to a token obtained from a browser
+ * session (1-hour expiry; a proper refresh-token flow is a follow-up).
  */
 @Component
 class EticketRailwayClient(
@@ -40,7 +41,16 @@ class EticketRailwayClient(
 ) {
     private val log = LoggerFactory.getLogger(EticketRailwayClient::class.java)
     private val isoDate = DateTimeFormatter.ISO_LOCAL_DATE
-    private val dottedDate = DateTimeFormatter.ofPattern("dd.MM.yyyy")
+
+    suspend fun getTrainsList(
+        depStationCode: String,
+        arvStationCode: String,
+        date: LocalDate
+    ): EticketTrainsListResponse = post(
+        "/api/v3/handbook/trains/list",
+        EticketTrainsListRequest.forward(date.format(isoDate), depStationCode, arvStationCode),
+        EticketTrainsListResponse::class.java
+    )
 
     suspend fun getTrainDetails(
         depStationCode: String,
@@ -56,28 +66,6 @@ class EticketRailwayClient(
             trainNumber = trainNumber
         ),
         EticketTrainDetailsResponse::class.java
-    )
-
-    suspend fun searchTrainsRaw(
-        depStationCode: String,
-        arvStationCode: String,
-        date: LocalDate
-    ): JsonNode = post(
-        "/api/v2/trains/availability/space/between/stations",
-        mapOf(
-            "direction" to listOf(
-                mapOf(
-                    "depDate" to date.format(dottedDate),
-                    "fullday" to true,
-                    "type" to "Forward"
-                )
-            ),
-            "stationFrom" to depStationCode,
-            "stationTo" to arvStationCode,
-            "detailNumPlaces" to 1,
-            "showWithoutPlaces" to 0
-        ),
-        JsonNode::class.java
     )
 
     private suspend fun <T> post(path: String, body: Any, responseType: Class<T>): T {

@@ -71,20 +71,25 @@ retried rather than failing a subscription.
 
 ## Known gaps / follow-ups
 
-- **Seats endpoint is verified, train-list endpoint is not.**
-  `POST /api/v1/handbook/trains` (per-train car/seat data) was confirmed
-  against real browser traffic (HAR capture, 2026-07-23) - its exact
-  response is checked in `EticketTrainDetailsParsingTest` against the
-  captured JSON. The per-date train *list* endpoint used by
-  `EticketRailwayClient.searchTrainsRaw` is still a best-effort guess and
-  is parsed defensively; capture the train-search page traffic to confirm
-  it. Subscriptions with pinned train numbers bypass it entirely.
-- **Auth**: the captured traffic carried a logged-in user's 1-hour JWT. If
-  the API rejects anonymous requests, set `RAILWAY_AUTH_TOKEN` as a
-  stopgap and implement a login/refresh flow for production.
+- **Both search endpoints are verified** against real browser traffic (HAR
+  captures, 2026-07-23), matching the site's own call order:
+  `POST /api/v3/handbook/trains/list` (per-date train list with free-seat
+  summaries; an empty `cars` list marks a sold-out train and skips the
+  details call) and `POST /api/v1/handbook/trains` (per-train free seat
+  numbers). Captured responses live in `src/test/resources/eticket` and
+  are exercised by the parsing tests and `EticketRailwayProviderTest`.
+- **Auth**: the captured traffic came from a logged-in session. The site's
+  `POST /api/v1/auth/login` requires a reCAPTCHA header, so the bot cannot
+  log in unattended. Options, in order: (1) the search endpoints may
+  answer anonymously - test at first run; (2) set `RAILWAY_AUTH_TOKEN`
+  from a browser session (1-hour expiry); (3) implement a refresh-token
+  flow - login returns a 30-day `refreshToken`, but the refresh endpoint's
+  contract has not been captured yet.
 - **Station directory**: `V2__seed_stations.sql` has verified Express-3
   codes for Tashkent (2900000) and Urgench (2900790); the other codes are
-  commonly cited but unverified.
+  commonly cited but unverified. `POST /api/v1/handbook/stations/list`
+  with `{"name":"<query>"}` is the site's own station search (a name-less
+  query returned 204 in the capture).
 - **Grouping identical monitored searches** across subscriptions (spec
   section 17) is not implemented yet - each subscription is checked
   independently. The `MonitoringSearchKey` shape described in the spec is a
