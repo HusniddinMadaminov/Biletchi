@@ -1,18 +1,17 @@
 package uz.railway.ticketbot.railway
 
+import com.fasterxml.jackson.databind.JsonNode
+import kotlinx.coroutines.reactor.awaitSingle
 import org.slf4j.LoggerFactory
 import org.springframework.http.HttpStatusCode
 import org.springframework.stereotype.Component
 import org.springframework.web.reactive.function.client.WebClient
 import org.springframework.web.reactive.function.client.WebClientRequestException
-import kotlinx.coroutines.reactor.awaitSingle
 import reactor.core.publisher.Mono
 import uz.railway.ticketbot.common.retry.TransientErrorRetry
 import uz.railway.ticketbot.config.RailwayProperties
-import uz.railway.ticketbot.railway.dto.EticketCarListResponse
-import uz.railway.ticketbot.railway.dto.EticketSeatListResponse
-import uz.railway.ticketbot.railway.dto.EticketStationSearchResponse
-import uz.railway.ticketbot.railway.dto.EticketTrainSearchResponse
+import uz.railway.ticketbot.railway.dto.EticketTrainDetailsRequest
+import uz.railway.ticketbot.railway.dto.EticketTrainDetailsResponse
 import uz.railway.ticketbot.railway.exception.RailwayAuthException
 import uz.railway.ticketbot.railway.exception.RailwayClientException
 import uz.railway.ticketbot.railway.exception.RailwayTransientException
@@ -20,11 +19,19 @@ import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 
 /**
- * Thin HTTP layer over eticket.railway.uz. Endpoint paths/params below are
- * placeholders that MUST be verified against the real site before
- * production use; everything else in this codebase depends only on
- * [RailwayProvider], so fixing this file (and the DTOs/mapper it feeds) is
- * the only work required if the site's contract differs.
+ * HTTP layer over eticket.railway.uz.
+ *
+ * [getTrainDetails] (POST /api/v1/handbook/trains) is VERIFIED against real
+ * browser traffic (HAR capture, 2026-07-23): it returns every car of one
+ * train with its free seat numbers. The captured request carried a Bearer
+ * token of a logged-in user; whether the endpoint also answers anonymously
+ * is not yet known - if it does not, set RAILWAY_AUTH_TOKEN.
+ *
+ * [searchTrainsRaw] (the per-date train list) is NOT yet verified - the HAR
+ * only covered the seats page. Its path/body follow the shape commonly seen
+ * for this site but must be confirmed with a HAR capture of the train
+ * search page; until then the response is handled as raw JSON and parsed
+ * defensively in [EticketRailwayProvider].
  */
 @Component
 class EticketRailwayClient(
@@ -32,43 +39,59 @@ class EticketRailwayClient(
     private val properties: RailwayProperties
 ) {
     private val log = LoggerFactory.getLogger(EticketRailwayClient::class.java)
-    private val dateFormatter = DateTimeFormatter.ISO_LOCAL_DATE
+    private val isoDate = DateTimeFormatter.ISO_LOCAL_DATE
+    private val dottedDate = DateTimeFormatter.ofPattern("dd.MM.yyyy")
 
-    suspend fun searchStations(query: String): EticketStationSearchResponse =
-        get("/api/v1/stations", mapOf("query" to query), EticketStationSearchResponse::class.java)
+    suspend fun getTrainDetails(
+        depStationCode: String,
+        arvStationCode: String,
+        date: LocalDate,
+        trainNumber: String
+    ): EticketTrainDetailsResponse = post(
+        "/api/v1/handbook/trains",
+        EticketTrainDetailsRequest(
+            depDate = date.format(isoDate),
+            depStationCode = depStationCode,
+            arvStationCode = arvStationCode,
+            trainNumber = trainNumber
+        ),
+        EticketTrainDetailsResponse::class.java
+    )
 
-    suspend fun searchTrains(fromStationCode: String, toStationCode: String, date: LocalDate): EticketTrainSearchResponse =
-        get(
-            "/api/v1/trains/search",
-            mapOf(
-                "from" to fromStationCode,
-                "to" to toStationCode,
-                "date" to date.format(dateFormatter)
+    suspend fun searchTrainsRaw(
+        depStationCode: String,
+        arvStationCode: String,
+        date: LocalDate
+    ): JsonNode = post(
+        "/api/v2/trains/availability/space/between/stations",
+        mapOf(
+            "direction" to listOf(
+                mapOf(
+                    "depDate" to date.format(dottedDate),
+                    "fullday" to true,
+                    "type" to "Forward"
+                )
             ),
-            EticketTrainSearchResponse::class.java
-        )
+            "stationFrom" to depStationCode,
+            "stationTo" to arvStationCode,
+            "detailNumPlaces" to 1,
+            "showWithoutPlaces" to 0
+        ),
+        JsonNode::class.java
+    )
 
-    suspend fun getCars(trainNumber: String, date: LocalDate): EticketCarListResponse =
-        get(
-            "/api/v1/trains/$trainNumber/cars",
-            mapOf("date" to date.format(dateFormatter)),
-            EticketCarListResponse::class.java
-        )
-
-    suspend fun getSeats(trainNumber: String, date: LocalDate, carNumber: String): EticketSeatListResponse =
-        get(
-            "/api/v1/trains/$trainNumber/cars/$carNumber/seats",
-            mapOf("date" to date.format(dateFormatter)),
-            EticketSeatListResponse::class.java
-        )
-
-    private suspend fun <T> get(path: String, params: Map<String, String>, responseType: Class<T>): T {
-        val mono = webClient.get()
-            .uri { builder ->
-                val uriBuilder = builder.path(path)
-                params.forEach { (key, value) -> uriBuilder.queryParam(key, value) }
-                uriBuilder.build()
+    private suspend fun <T> post(path: String, body: Any, responseType: Class<T>): T {
+        val mono = webClient.post()
+            .uri(path)
+            .headers { headers ->
+                headers.set("Accept", "application/json")
+                headers.set("device-type", "BROWSER")
+                headers.set("Accept-Language", "en")
+                properties.authToken?.takeIf { it.isNotBlank() }?.let {
+                    headers.setBearerAuth(it)
+                }
             }
+            .bodyValue(body)
             .retrieve()
             .onStatus({ it.isError }) { response -> Mono.error(classifyError(response.statusCode())) }
             .bodyToMono(responseType)

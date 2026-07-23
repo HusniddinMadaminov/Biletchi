@@ -71,11 +71,20 @@ retried rather than failing a subscription.
 
 ## Known gaps / follow-ups
 
-- **railway.uz endpoint contract**: `EticketRailwayClient` paths and
-  `dto/EticketDtos.kt` field names are placeholders and need to be verified
-  against the real site (see comments in those files).
-- **Station directory**: `V2__seed_stations.sql` ships a small example list;
-  refresh it from the real station search endpoint before relying on it.
+- **Seats endpoint is verified, train-list endpoint is not.**
+  `POST /api/v1/handbook/trains` (per-train car/seat data) was confirmed
+  against real browser traffic (HAR capture, 2026-07-23) - its exact
+  response is checked in `EticketTrainDetailsParsingTest` against the
+  captured JSON. The per-date train *list* endpoint used by
+  `EticketRailwayClient.searchTrainsRaw` is still a best-effort guess and
+  is parsed defensively; capture the train-search page traffic to confirm
+  it. Subscriptions with pinned train numbers bypass it entirely.
+- **Auth**: the captured traffic carried a logged-in user's 1-hour JWT. If
+  the API rejects anonymous requests, set `RAILWAY_AUTH_TOKEN` as a
+  stopgap and implement a login/refresh flow for production.
+- **Station directory**: `V2__seed_stations.sql` has verified Express-3
+  codes for Tashkent (2900000) and Urgench (2900790); the other codes are
+  commonly cited but unverified.
 - **Grouping identical monitored searches** across subscriptions (spec
   section 17) is not implemented yet - each subscription is checked
   independently. The `MonitoringSearchKey` shape described in the spec is a

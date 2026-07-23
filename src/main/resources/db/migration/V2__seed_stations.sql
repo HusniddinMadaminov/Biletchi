@@ -1,18 +1,15 @@
--- Placeholder seed data only. Codes below are NOT verified against the real
--- eticket.railway.uz station directory - they exist so the bot has
--- something to search against out of the box. Replace/refresh this table
--- from GET /api/v1/stations (see EticketRailwayClient.searchStations) before
--- relying on it in production.
+-- Station codes are Express-3 codes as used by eticket.railway.uz.
+-- VERIFIED from captured browser traffic (2026-07-23):
+--   2900000 = Tashkent, 2900790 = Urgench.
+-- The remaining codes are commonly cited for this system but UNVERIFIED -
+-- confirm them against the site's station handbook (or a HAR capture of the
+-- station autocomplete) before relying on them, and extend this table the
+-- same way for more stations.
 INSERT INTO stations (code, name, name_normalized) VALUES
-    ('TASHKENT', 'Toshkent', 'toshkent'),
-    ('SAMARKAND', 'Samarqand', 'samarqand'),
-    ('BUKHARA', 'Buxoro', 'buxoro'),
-    ('URGANCH', 'Urganch', 'urganch'),
-    ('NUKUS', 'Nukus', 'nukus'),
-    ('ANDIJAN', 'Andijon', 'andijon'),
-    ('FERGANA', 'Farg''ona', 'fargona'),
-    ('QARSHI', 'Qarshi', 'qarshi'),
-    ('NAVOIY', 'Navoiy', 'navoiy'),
-    ('KOKAND', 'Qo''qon', 'qoqon'),
-    ('KHIVA', 'Xiva', 'xiva'),
-    ('TERMIZ', 'Termiz', 'termiz');
+    ('2900000', 'Toshkent', 'toshkent'),
+    ('2900790', 'Urganch', 'urganch'),
+    ('2900700', 'Samarqand', 'samarqand'),
+    ('2900800', 'Buxoro', 'buxoro'),
+    ('2900172', 'Xiva', 'xiva'),
+    ('2900970', 'Nukus', 'nukus'),
+    ('2900300', 'Andijon', 'andijon');

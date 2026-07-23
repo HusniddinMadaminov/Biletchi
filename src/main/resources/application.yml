@@ -29,6 +29,7 @@ railway:
   base-url: ${RAILWAY_BASE_URL:https://eticket.railway.uz}
   connect-timeout-ms: ${RAILWAY_CONNECT_TIMEOUT_MS:5000}
   read-timeout-ms: ${RAILWAY_READ_TIMEOUT_MS:10000}
+  auth-token: ${RAILWAY_AUTH_TOKEN:}
   retry:
     max-attempts: 4
     initial-backoff-ms: 2000
