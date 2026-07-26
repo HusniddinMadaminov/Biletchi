@@ -123,6 +123,19 @@ class TicketSubscriptionService(
         }
     }
 
+    /**
+     * The previously found best offer has disappeared (e.g. the seat was sold) and no replacement
+     * was found anywhere in the subscription's remaining range - back to "nothing found yet" (section 11).
+     */
+    @Transactional
+    fun clearBestResult(id: Long) {
+        val entity = repository.findById(id).orElse(null) ?: return
+        entity.currentBestDate = null
+        entity.currentResultJson = null
+        entity.currentFingerprint = null
+        entity.updatedAt = Instant.now(clock)
+    }
+
     @Transactional
     fun markCompleted(id: Long) {
         val entity = repository.findById(id).orElse(null) ?: return

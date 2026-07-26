@@ -124,9 +124,10 @@ class TicketMonitoringServiceTest {
         verify(exactly = 1) { subscriptionService.markCompleted(sub.id) }
     }
 
-    // Test 9: startDate has passed -> effectiveStartDate is clamped to today, and the window end is currentBestDate - 1.
+    // Test 9: startDate has passed -> effectiveStartDate is clamped to today, and the window end is
+    // currentBestDate itself (inclusive), so that date's offer gets re-verified every cycle too.
     @Test
-    fun `effective window is clamped to today and ends the day before currentBestDate`() = runTest {
+    fun `effective window is clamped to today and includes currentBestDate`() = runTest {
         val sub = subscription(
             startDate = LocalDate.of(2026, 7, 20),
             currentBestDate = LocalDate.of(2026, 7, 30)
@@ -135,12 +136,61 @@ class TicketMonitoringServiceTest {
         val endSlot = slot<LocalDate>()
         coEvery {
             railwayProvider.findNearestLowerSeat(any(), any(), any(), any(), capture(startSlot), capture(endSlot), any())
-        } returns emptyList()
+        } returns listOf(sampleOffer(LocalDate.of(2026, 7, 30), listOf(9)))
 
         service.checkSubscription(sub)
 
         assertEquals(fixedToday, startSlot.captured)
-        assertEquals(LocalDate.of(2026, 7, 29), endSlot.captured)
+        assertEquals(LocalDate.of(2026, 7, 30), endSlot.captured)
+    }
+
+    // Regression: the offer previously found on currentBestDate can be sold out by the next check.
+    // Since currentBestDate is now part of the scanned window, that disappearance is detected (empty
+    // result) and the subscription re-anchors forward to the next available date instead of keeping a
+    // stale currentBestDate on display. This is strictly later than before, so it must never notify.
+    @Test
+    fun `best offer disappearing re-anchors forward to a new later date without notifying`() = runTest {
+        val sub = subscription(currentBestDate = LocalDate.of(2026, 7, 28))
+        val laterDate = LocalDate.of(2026, 8, 2)
+        coEvery {
+            railwayProvider.findNearestLowerSeat(any(), any(), any(), any(), any(), any(), any())
+        } returns emptyList() andThen listOf(sampleOffer(laterDate, listOf(9)))
+
+        service.checkSubscription(sub)
+
+        verify(exactly = 1) { subscriptionService.applyEarlierResult(sub.id, laterDate, any()) }
+        coVerify(exactly = 0) { notificationService.sendEarlierSeatFound(any(), any(), any()) }
+        verify(exactly = 0) { subscriptionService.clearBestResult(any()) }
+    }
+
+    // Regression: if nothing at all remains in the subscription's range after the best offer vanishes,
+    // fall back to the "nothing found yet" state (spec section 11) rather than leaving a stale date.
+    @Test
+    fun `best offer disappearing with nothing left anywhere clears the best result`() = runTest {
+        val sub = subscription(currentBestDate = LocalDate.of(2026, 7, 28))
+        coEvery {
+            railwayProvider.findNearestLowerSeat(any(), any(), any(), any(), any(), any(), any())
+        } returns emptyList()
+
+        service.checkSubscription(sub)
+
+        verify(exactly = 1) { subscriptionService.clearBestResult(sub.id) }
+        verify(exactly = 0) { subscriptionService.applyEarlierResult(any(), any(), any()) }
+    }
+
+    // Regression: when currentBestDate is already the last day of the range, there is nothing to scan
+    // forward into - the result must be cleared without an extra, pointless provider call.
+    @Test
+    fun `best offer disappearing at the end of the range clears result without an extra query`() = runTest {
+        val sub = subscription(currentBestDate = fixedToday.plusDays(30), endDate = fixedToday.plusDays(30))
+        coEvery {
+            railwayProvider.findNearestLowerSeat(any(), any(), any(), any(), any(), any(), any())
+        } returns emptyList()
+
+        service.checkSubscription(sub)
+
+        coVerify(exactly = 1) { railwayProvider.findNearestLowerSeat(any(), any(), any(), any(), any(), any(), any()) }
+        verify(exactly = 1) { subscriptionService.clearBestResult(sub.id) }
     }
 
     // Test 12: a railway.uz error must not crash the check or flip subscription status - just recorded for next cycle.

@@ -104,6 +104,34 @@ class TicketSubscriptionServiceTest {
         assertEquals(fixedToday, entity.currentBestDate)
     }
 
+    // clearBestResult resets the display fields back to "nothing found yet" without touching status,
+    // used when a previously found offer disappears and no replacement exists anywhere in range.
+    @Test
+    fun `clearBestResult resets currentBestDate and cached result to null`() {
+        val entity = TicketSubscriptionEntity(
+            id = 7L,
+            telegramUserId = 42L,
+            fromStationCode = "TASHKENT",
+            fromStationName = "Toshkent",
+            toStationCode = "URGANCH",
+            toStationName = "Urganch",
+            startDate = fixedToday,
+            endDate = fixedToday.plusDays(30),
+            currentBestDate = fixedToday.plusDays(3),
+            currentResultJson = """{"some":"cached json"}""",
+            currentFingerprint = "abc123",
+            status = SubscriptionStatus.ACTIVE
+        )
+        every { repository.findById(7L) } returns java.util.Optional.of(entity)
+
+        service.clearBestResult(7L)
+
+        assertEquals(null, entity.currentBestDate)
+        assertEquals(null, entity.currentResultJson)
+        assertEquals(null, entity.currentFingerprint)
+        assertEquals(SubscriptionStatus.ACTIVE, entity.status)
+    }
+
     // Regression: rows persisted before TicketSearchResult.lowerSeatNumbers was renamed to seatNumbers
     // must still parse - the field is JSON-aliased for exactly this.
     @Test
