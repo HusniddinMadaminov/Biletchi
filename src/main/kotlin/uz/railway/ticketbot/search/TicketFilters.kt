@@ -5,6 +5,7 @@ import java.security.MessageDigest
 import java.time.LocalTime
 
 data class TicketFilters(
+    val seatMode: SeatMode = SeatMode.LOWER,
     val trainNumbers: Set<String> = emptySet(),
     val allowedCarTypes: Set<String> = emptySet(),
     val departureTimeFrom: LocalTime? = null,
@@ -18,6 +19,7 @@ data class TicketFilters(
     /** Stable hash used as part of the monitoring de-duplication search key. */
     fun stableHash(): String {
         val raw = listOf(
+            seatMode.name,
             trainNumbers.sorted().joinToString(","),
             allowedCarTypes.sorted().joinToString(","),
             departureTimeFrom?.toString().orEmpty(),

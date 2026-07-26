@@ -7,6 +7,7 @@ import uz.railway.ticketbot.bot.TelegramMessageSender
 import uz.railway.ticketbot.bot.menu.Menus
 import uz.railway.ticketbot.bot.message.SearchResultMessageFormatter
 import uz.railway.ticketbot.config.TicketBotProperties
+import uz.railway.ticketbot.search.SeatMode
 import uz.railway.ticketbot.search.TicketFilters
 import uz.railway.ticketbot.search.TicketSearchOutcome
 import uz.railway.ticketbot.search.TicketSearchRequest
@@ -21,10 +22,11 @@ import java.time.format.DateTimeFormatter
 import java.time.format.DateTimeParseException
 
 /**
- * Drives the "Yangi chipta qidirish" wizard (spec section 3.2): from
- * station -> to station -> start date -> search period -> confirmation ->
- * search. Filters are skipped in this version (spec: "Birinchi versiyada
- * filtrlar majburiy emas").
+ * Drives the new-search wizard (spec section 3.2): seat mode (any seat vs
+ * lower-only) -> from station -> to station -> start date -> search period
+ * -> confirmation -> search. Other filters (train number, car type, price)
+ * are skipped in this version (spec: "Birinchi versiyada filtrlar majburiy
+ * emas").
  */
 @Service
 class ConversationService(
@@ -44,15 +46,19 @@ class ConversationService(
         userService.updateConversationState(user.telegramUserId, ConversationState.IDLE, null)
         sender.send(
             user.chatId,
-            "Assalomu alaykum! Bu bot temiryo'l chiptalari orasidan pastki joylarni topishga yordam beradi.\n\nQuyidagi menyudan birini tanlang:",
+            "Assalomu alaykum! Bu bot temiryo'l chiptalarini qidirishga yordam beradi - istalgan bo'sh joy yoki faqat pastki joylar bo'yicha.\n\nQuyidagi menyudan birini tanlang:",
             Menus.mainMenu()
         )
     }
 
     fun handleMainMenuText(user: TelegramUserEntity, text: String): Boolean {
         return when (text) {
-            Menus.BTN_NEW_SEARCH -> {
-                startNewSearch(user)
+            Menus.BTN_NEW_SEARCH_ANY -> {
+                startNewSearch(user, SeatMode.ANY)
+                true
+            }
+            Menus.BTN_NEW_SEARCH_LOWER -> {
+                startNewSearch(user, SeatMode.LOWER)
                 true
             }
             Menus.BTN_HELP -> {
@@ -63,8 +69,8 @@ class ConversationService(
         }
     }
 
-    private fun startNewSearch(user: TelegramUserEntity) {
-        userService.updateConversationState(user.telegramUserId, ConversationState.WAITING_FROM_STATION, contextJson(ConversationContext()))
+    private fun startNewSearch(user: TelegramUserEntity, seatMode: SeatMode) {
+        userService.updateConversationState(user.telegramUserId, ConversationState.WAITING_FROM_STATION, contextJson(ConversationContext(seatMode = seatMode)))
         sender.send(user.chatId, "Qayerdan jo'nashni istaysiz?\n\nBekat nomini kamida 3 ta harf bilan yozing (masalan: Tosh yoki Toshkent):")
     }
 
@@ -74,7 +80,10 @@ class ConversationService(
             """
             ❓ Yordam
 
-            Bu bot eticket.railway.uz saytidan siz belgilagan yo'nalish bo'yicha pastki (toq raqamli) joy mavjud bo'lgan eng yaqin sanani topadi va shu sanadan oldinroq joy bo'shasa, sizga xabar beradi.
+            Bu bot eticket.railway.uz saytidan siz belgilagan yo'nalish bo'yicha bo'sh joy mavjud bo'lgan eng yaqin sanani topadi va shu sanadan oldinroq joy bo'shasa, sizga xabar beradi.
+
+            🎫 Yangi chipta - istalgan bo'sh joyni (toq yoki juft) qidiradi.
+            🛏 Pastki joy qidirish - faqat pastki (toq raqamli) joylarni qidiradi.
 
             Bot chiptani o'zi sotib olmaydi va pasport, karta yoki parol kabi ma'lumotlarni saqlamaydi - xarid uchun sizni rasmiy saytga yo'naltiradi.
 
@@ -142,12 +151,14 @@ class ConversationService(
         val context = readContext(user).copy(periodDays = days)
         userService.updateConversationState(user.telegramUserId, ConversationState.WAITING_CONFIRMATION, contextJson(context))
         val endDate = context.startDate!!.plusDays(days)
+        val seatModeLabel = if (context.seatMode == SeatMode.LOWER) "Pastki joylar" else "Istalgan bo'sh joy"
         sender.send(
             user.chatId,
             """
             Qidiruvni tasdiqlang:
 
             ${context.fromStationName} → ${context.toStationName}
+            Joy turi: $seatModeLabel
             Boshlang'ich sana: ${context.startDate.format(dateFormat)}
             Oxirgi sana: ${endDate.format(dateFormat)}
             """.trimIndent(),
@@ -178,7 +189,7 @@ class ConversationService(
             toStationName = context.toStationName ?: context.toStationCode,
             startDate = startDate,
             endDate = startDate.plusDays(periodDays),
-            filters = TicketFilters.NONE
+            filters = TicketFilters(seatMode = context.seatMode)
         )
 
         sender.send(user.chatId, "Qidirilmoqda, biroz kuting...")

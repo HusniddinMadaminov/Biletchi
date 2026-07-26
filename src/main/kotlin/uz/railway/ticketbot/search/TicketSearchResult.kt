@@ -18,7 +18,8 @@ data class TicketSearchResult(
     val arrivalTime: LocalDateTime?,
     val carType: String,
     val carNumber: String,
-    val lowerSeatNumbers: List<Int>,
+    /** Matching seat numbers for this offer - only odd (lower) ones when [TicketFilters.seatMode] is LOWER, all of them when ANY. */
+    val seatNumbers: List<Int>,
     val minimumPrice: BigDecimal?,
     val currency: String?,
     val purchaseUrl: String?
@@ -29,7 +30,7 @@ data class TicketSearchResult(
     companion object {
         /**
          * Identity of a concrete offer: direction + date + train + departure time +
-         * car + the exact set of lower seats. Used only to suppress duplicate
+         * car + the exact set of matched seats. Used only to suppress duplicate
          * notifications for an unchanged offer; it never overrides the date-based
          * notification rule (see NotificationService).
          */
@@ -42,7 +43,7 @@ data class TicketSearchResult(
                 result.departureTime.toString(),
                 result.carType,
                 result.carNumber,
-                result.lowerSeatNumbers.sorted().joinToString(",")
+                result.seatNumbers.sorted().joinToString(",")
             ).joinToString("|")
             val digest = MessageDigest.getInstance("SHA-256").digest(raw.toByteArray())
             return digest.joinToString("") { "%02x".format(it) }
@@ -58,6 +59,6 @@ data class TicketSearchResult(
                 .thenBy { it.minimumPrice ?: BigDecimal.ZERO }
                 .thenBy { it.trainNumber }
                 .thenBy { it.carNumber }
-                .thenBy { it.lowerSeatNumbers.minOrNull() ?: Int.MAX_VALUE }
+                .thenBy { it.seatNumbers.minOrNull() ?: Int.MAX_VALUE }
     }
 }

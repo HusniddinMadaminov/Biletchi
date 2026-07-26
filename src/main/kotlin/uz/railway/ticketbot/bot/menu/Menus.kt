@@ -8,13 +8,15 @@ import uz.railway.ticketbot.bot.TelegramMessageSender
 import uz.railway.ticketbot.station.Station
 
 object Menus {
-    const val BTN_NEW_SEARCH = "🎫 Yangi chipta qidirish"
+    const val BTN_NEW_SEARCH_ANY = "🎫 Yangi chipta"
+    const val BTN_NEW_SEARCH_LOWER = "🛏 Pastki joy qidirish"
     const val BTN_MY_SUBSCRIPTIONS = "📋 Kuzatuvlarim"
     const val BTN_HELP = "❓ Yordam"
 
     fun mainMenu(): ReplyKeyboardMarkup {
         val rows = listOf(
-            KeyboardRow(listOf(KeyboardButton(BTN_NEW_SEARCH))),
+            KeyboardRow(listOf(KeyboardButton(BTN_NEW_SEARCH_ANY))),
+            KeyboardRow(listOf(KeyboardButton(BTN_NEW_SEARCH_LOWER))),
             KeyboardRow(listOf(KeyboardButton(BTN_MY_SUBSCRIPTIONS), KeyboardButton(BTN_HELP)))
         )
         return ReplyKeyboardMarkup.builder()

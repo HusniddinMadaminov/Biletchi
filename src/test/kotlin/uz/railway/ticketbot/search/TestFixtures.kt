@@ -7,7 +7,7 @@ import java.time.LocalTime
 
 fun sampleOffer(
     date: LocalDate,
-    lowerSeats: List<Int> = listOf(9, 15),
+    seatNumbers: List<Int> = listOf(9, 15),
     trainNumber: String = "058",
     departureTime: LocalTime = LocalTime.of(20, 15),
     price: BigDecimal = BigDecimal(346000)
@@ -23,7 +23,7 @@ fun sampleOffer(
     arrivalTime = null,
     carType = "Kupe",
     carNumber = "4",
-    lowerSeatNumbers = lowerSeats,
+    seatNumbers = seatNumbers,
     minimumPrice = price,
     currency = "UZS",
     purchaseUrl = "https://eticket.railway.uz/search"

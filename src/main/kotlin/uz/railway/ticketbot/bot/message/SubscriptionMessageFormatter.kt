@@ -1,6 +1,7 @@
 package uz.railway.ticketbot.bot.message
 
 import org.springframework.stereotype.Component
+import uz.railway.ticketbot.search.SeatMode
 import uz.railway.ticketbot.subscription.SubscriptionStatus
 import uz.railway.ticketbot.subscription.TicketSubscription
 import java.time.ZoneOffset
@@ -10,6 +11,7 @@ import java.time.ZoneOffset
 class SubscriptionMessageFormatter {
     fun format(subscription: TicketSubscription): String = buildString {
         appendLine("📍 ${subscription.fromStationName} → ${subscription.toStationName}")
+        appendLine("Joy turi: ${if (subscription.filters.seatMode == SeatMode.LOWER) "Pastki joylar" else "Istalgan bo'sh joy"}")
         if (subscription.currentBestDate != null) {
             appendLine("📅 Eng yaqin sana: ${FormatUtils.date(subscription.currentBestDate)}")
         } else {

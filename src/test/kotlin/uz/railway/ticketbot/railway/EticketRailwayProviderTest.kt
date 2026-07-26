@@ -13,6 +13,7 @@ import uz.railway.ticketbot.config.TicketBotProperties
 import uz.railway.ticketbot.railway.dto.EticketTrainDetailsResponse
 import uz.railway.ticketbot.railway.dto.EticketTrainsListResponse
 import uz.railway.ticketbot.railway.mapper.EticketMapper
+import uz.railway.ticketbot.search.SeatMode
 import uz.railway.ticketbot.search.TicketFilters
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -57,7 +58,20 @@ class EticketRailwayProviderTest {
         assertEquals("Sleeper", first.carType)
         // Car 09's lower (odd) seats from the captured places[] data.
         val car09 = offers.first { it.carNumber == "09" }
-        assertEquals(listOf(37, 39, 41, 43, 45, 47, 49), car09.lowerSeatNumbers)
+        assertEquals(listOf(37, 39, 41, 43, 45, 47, 49), car09.seatNumbers)
+    }
+
+    @Test
+    fun `SeatMode ANY includes even seats too, SeatMode LOWER stays odd-only`() = runTest {
+        val anyOffers = provider.searchOffersForDate("2900790", "Urganch", "2900000", "Toshkent", date, TicketFilters(seatMode = SeatMode.ANY))
+        val lowerOffers = provider.searchOffersForDate("2900790", "Urganch", "2900000", "Toshkent", date, TicketFilters(seatMode = SeatMode.LOWER))
+
+        // Car 09's full places[] from the captured response includes even seats (e.g. 32, 38, 40).
+        val car09Any = anyOffers.first { it.carNumber == "09" }
+        assertEquals(listOf(32, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 52, 54), car09Any.seatNumbers)
+
+        val car09Lower = lowerOffers.first { it.carNumber == "09" }
+        assertEquals(listOf(37, 39, 41, 43, 45, 47, 49), car09Lower.seatNumbers)
     }
 
     @Test

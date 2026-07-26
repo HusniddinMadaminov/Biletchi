@@ -8,6 +8,7 @@ import uz.railway.ticketbot.railway.dto.EticketTrainDetails
 import uz.railway.ticketbot.railway.dto.EticketTrainSummary
 import uz.railway.ticketbot.railway.mapper.EticketMapper
 import uz.railway.ticketbot.search.NearestLowerSeatFinder
+import uz.railway.ticketbot.search.SeatMode
 import uz.railway.ticketbot.search.TicketFilters
 import uz.railway.ticketbot.search.TicketSearchResult
 import java.time.LocalDate
@@ -79,7 +80,7 @@ class EticketRailwayProvider(
         searchOffersForDate(fromStationCode, fromStationName, toStationCode, toStationName, date, filters)
     }
 
-    /** All lower-seat offers for a single date that satisfy [filters], per spec section 5. */
+    /** All matching-seat offers for a single date that satisfy [filters] (spec section 5). */
     suspend fun searchOffersForDate(
         fromStationCode: String,
         fromStationName: String,
@@ -109,8 +110,12 @@ class EticketRailwayProvider(
 
                 for (car in group.cars) {
                     // Business rule (spec section 2.1): odd seat number = lower berth.
-                    val lowerSeats = car.places.filter { RailwaySeat.isLowerSeat(it) }.sorted()
-                    if (lowerSeats.isEmpty()) continue
+                    // SeatMode.ANY skips that filter entirely - any free seat is a match.
+                    val matchingSeats = when (filters.seatMode) {
+                        SeatMode.LOWER -> car.places.filter { RailwaySeat.isLowerSeat(it) }
+                        SeatMode.ANY -> car.places
+                    }.sorted()
+                    if (matchingSeats.isEmpty()) continue
 
                     offers += TicketSearchResult(
                         fromStationCode = fromStationCode,
@@ -124,7 +129,7 @@ class EticketRailwayProvider(
                         arrivalTime = mapper.parseDateTime(details.arrivalDate) ?: mapper.parseDateTime(summary.arrivalDate),
                         carType = carType,
                         carNumber = car.number,
-                        lowerSeatNumbers = lowerSeats,
+                        seatNumbers = matchingSeats,
                         minimumPrice = group.tariff,
                         currency = "UZS",
                         purchaseUrl = buildPurchaseUrl(fromStationCode, toStationCode, date)
