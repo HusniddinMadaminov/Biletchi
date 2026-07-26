@@ -63,16 +63,21 @@ class TelegramUpdateHandler(
             return
         }
 
+        // Main menu buttons always win over an in-progress wizard step, so pressing one
+        // (e.g. "Kuzatuvlarim" while mid-search) never gets misread as wizard input like a station name.
+        if (text == Menus.BTN_MY_SUBSCRIPTIONS) {
+            conversationService.resetToIdle(user)
+            subscriptionCommandService.listSubscriptions(user)
+            return
+        }
+        if (text == Menus.BTN_CANCEL && user.conversationState != ConversationState.IDLE) {
+            conversationService.handleSearchCancelled(user)
+            return
+        }
         if (conversationService.handleMainMenuText(user, text)) return
 
         when (user.conversationState) {
-            ConversationState.IDLE -> {
-                if (text == Menus.BTN_MY_SUBSCRIPTIONS) {
-                    subscriptionCommandService.listSubscriptions(user)
-                } else {
-                    sender.send(user.chatId, "Menyudan birini tanlang yoki /start bosing.", Menus.mainMenu())
-                }
-            }
+            ConversationState.IDLE -> sender.send(user.chatId, "Menyudan birini tanlang yoki /start bosing.", Menus.mainMenu())
             else -> conversationService.handleWizardText(user, user.conversationState, text)
         }
     }

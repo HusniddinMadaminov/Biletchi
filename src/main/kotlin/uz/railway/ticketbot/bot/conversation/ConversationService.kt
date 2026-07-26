@@ -71,10 +71,20 @@ class ConversationService(
 
     private fun startNewSearch(user: TelegramUserEntity, seatMode: SeatMode) {
         userService.updateConversationState(user.telegramUserId, ConversationState.WAITING_FROM_STATION, contextJson(ConversationContext(seatMode = seatMode)))
-        sender.send(user.chatId, "Qayerdan jo'nashni istaysiz?\n\nBekat nomini kamida 3 ta harf bilan yozing (masalan: Tosh yoki Toshkent):")
+        sender.send(
+            user.chatId,
+            "Qayerdan jo'nashni istaysiz?\n\nBekat nomini kamida 3 ta harf bilan yozing (masalan: Tosh yoki Toshkent):",
+            Menus.wizardMenu()
+        )
+    }
+
+    /** Silently drops any in-progress wizard, e.g. when the user navigates away via another menu button. */
+    fun resetToIdle(user: TelegramUserEntity) {
+        userService.updateConversationState(user.telegramUserId, ConversationState.IDLE, null)
     }
 
     fun sendHelp(user: TelegramUserEntity) {
+        resetToIdle(user)
         sender.send(
             user.chatId,
             """
@@ -130,11 +140,11 @@ class ConversationService(
         if (prefix == "from") {
             val updated = context.copy(fromStationCode = station.code, fromStationName = station.name)
             userService.updateConversationState(user.telegramUserId, ConversationState.WAITING_TO_STATION, contextJson(updated))
-            sender.send(user.chatId, "Qayerga borishni istaysiz?\n\nBekat nomini kamida 3 ta harf bilan yozing:")
+            sender.send(user.chatId, "Qayerga borishni istaysiz?\n\nBekat nomini kamida 3 ta harf bilan yozing:", Menus.wizardMenu())
         } else {
             val updated = context.copy(toStationCode = station.code, toStationName = station.name)
             userService.updateConversationState(user.telegramUserId, ConversationState.WAITING_START_DATE, contextJson(updated))
-            sender.send(user.chatId, "Boshlang'ich sanani kiriting (kun.oy.yil, masalan: ${LocalDate.now(clock).plusDays(2).format(dateFormat)}):")
+            sender.send(user.chatId, "Boshlang'ich sanani kiriting (kun.oy.yil, masalan: ${LocalDate.now(clock).plusDays(2).format(dateFormat)}):", Menus.wizardMenu())
         }
     }
 
@@ -200,7 +210,8 @@ class ConversationService(
             filters = TicketFilters(seatMode = context.seatMode)
         )
 
-        sender.send(user.chatId, "Qidirilmoqda, biroz kuting...")
+        // The wizard is done at this point, so restore the main menu keyboard (was showing "❌ Bekor qilish" until now).
+        sender.send(user.chatId, "Qidirilmoqda, biroz kuting...", Menus.mainMenu())
         val outcome = searchService.findNearestLowerSeat(request)
 
         val text = if (outcome.found) resultFormatter.formatFound(outcome) else resultFormatter.formatNotFound(outcome)

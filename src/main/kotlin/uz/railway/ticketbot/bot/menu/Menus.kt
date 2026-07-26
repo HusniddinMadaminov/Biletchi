@@ -12,6 +12,7 @@ object Menus {
     const val BTN_NEW_SEARCH_LOWER = "🛏 Pastki joy qidirish"
     const val BTN_MY_SUBSCRIPTIONS = "📋 Kuzatuvlarim"
     const val BTN_HELP = "❓ Yordam"
+    const val BTN_CANCEL = "❌ Bekor qilish"
 
     fun mainMenu(): ReplyKeyboardMarkup {
         val rows = listOf(
@@ -19,6 +20,15 @@ object Menus {
             KeyboardRow(listOf(KeyboardButton(BTN_NEW_SEARCH_LOWER))),
             KeyboardRow(listOf(KeyboardButton(BTN_MY_SUBSCRIPTIONS), KeyboardButton(BTN_HELP)))
         )
+        return ReplyKeyboardMarkup.builder()
+            .keyboard(rows)
+            .resizeKeyboard(true)
+            .build()
+    }
+
+    /** Shown instead of [mainMenu] while a new-search wizard is in progress, so the user always has a way out. */
+    fun wizardMenu(): ReplyKeyboardMarkup {
+        val rows = listOf(KeyboardRow(listOf(KeyboardButton(BTN_CANCEL))))
         return ReplyKeyboardMarkup.builder()
             .keyboard(rows)
             .resizeKeyboard(true)
