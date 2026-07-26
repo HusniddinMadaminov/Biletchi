@@ -28,11 +28,18 @@ import java.time.format.DateTimeFormatter
  *  - [getTrainDetails] POST /api/v1/handbook/trains - one train's cars with
  *    exact free seat numbers
  *
- * The captured requests carried a logged-in user's Bearer token (the site's
- * login endpoint requires reCAPTCHA, so the bot cannot log in by itself).
- * Whether these two endpoints also answer anonymously is not yet known - if
- * they do not, set RAILWAY_AUTH_TOKEN to a token obtained from a browser
- * session (1-hour expiry; a proper refresh-token flow is a follow-up).
+ * The site fronts its API with Spring Security's cookie-based CSRF
+ * protection: browser requests carry an XSRF-TOKEN cookie plus a matching
+ * X-XSRF-TOKEN header, and POSTs without the pair are rejected with 403.
+ * This client bootstraps the cookie with a GET to the site root, caches it,
+ * sends the pair on every POST, and refreshes it once if a 403 slips
+ * through (stale token).
+ *
+ * The captured traffic was also from a logged-in session (Bearer JWT). The
+ * login endpoint requires reCAPTCHA, so the bot cannot log in by itself;
+ * if the API turns out to require auth beyond CSRF, set RAILWAY_AUTH_TOKEN
+ * to a token from a browser session (1-hour expiry; a refresh-token flow
+ * is a follow-up).
  */
 @Component
 class EticketRailwayClient(
@@ -41,6 +48,9 @@ class EticketRailwayClient(
 ) {
     private val log = LoggerFactory.getLogger(EticketRailwayClient::class.java)
     private val isoDate = DateTimeFormatter.ISO_LOCAL_DATE
+
+    @Volatile
+    private var xsrfToken: String? = null
 
     suspend fun getTrainsList(
         depStationCode: String,
@@ -69,12 +79,31 @@ class EticketRailwayClient(
     )
 
     private suspend fun <T> post(path: String, body: Any, responseType: Class<T>): T {
+        val token = ensureXsrfToken()
+        return try {
+            doPost(path, body, responseType, token)
+        } catch (ex: RailwayAuthException) {
+            // A cached XSRF token may have gone stale - refresh it once and retry.
+            log.info("Got auth error on {}, refreshing XSRF token and retrying once", path)
+            xsrfToken = null
+            val fresh = ensureXsrfToken()
+            if (fresh == null || fresh == token) throw ex
+            doPost(path, body, responseType, fresh)
+        }
+    }
+
+    private suspend fun <T> doPost(path: String, body: Any, responseType: Class<T>, xsrf: String?): T {
         val mono = webClient.post()
             .uri(path)
             .headers { headers ->
                 headers.set("Accept", "application/json")
                 headers.set("device-type", "BROWSER")
                 headers.set("Accept-Language", "en")
+                headers.set("User-Agent", BROWSER_USER_AGENT)
+                if (xsrf != null) {
+                    headers.set("X-XSRF-TOKEN", xsrf)
+                    headers.set("Cookie", "XSRF-TOKEN=$xsrf")
+                }
                 properties.authToken?.takeIf { it.isNotBlank() }?.let {
                     headers.setBearerAuth(it)
                 }
@@ -90,6 +119,35 @@ class EticketRailwayClient(
         return mono.awaitSingle()
     }
 
+    /** Bootstraps (and caches) the XSRF-TOKEN cookie by hitting the site root. */
+    private suspend fun ensureXsrfToken(): String? {
+        xsrfToken?.let { return it }
+        val fetched = webClient.get()
+            .uri("/")
+            .headers { headers ->
+                headers.set("User-Agent", BROWSER_USER_AGENT)
+                headers.set("Accept-Language", "en")
+            }
+            .exchangeToMono { response ->
+                val cookie = response.cookies()["XSRF-TOKEN"]?.firstOrNull()?.value
+                response.releaseBody().thenReturn(cookie ?: "")
+            }
+            .onErrorResume { ex ->
+                log.warn("Failed to bootstrap XSRF token from railway.uz: {}", ex.message)
+                Mono.just("")
+            }
+            .awaitSingle()
+            .takeIf { it.isNotBlank() }
+
+        if (fetched != null) {
+            xsrfToken = fetched
+            log.info("Obtained XSRF token from railway.uz")
+        } else {
+            log.warn("No XSRF-TOKEN cookie received from railway.uz root page")
+        }
+        return fetched
+    }
+
     private fun classifyError(status: HttpStatusCode): Exception {
         val code = status.value()
         return when {
@@ -97,5 +155,10 @@ class EticketRailwayClient(
             code == 429 || code in 500..599 -> RailwayTransientException("railway.uz transient error: HTTP $code")
             else -> RailwayClientException("railway.uz client error: HTTP $code")
         }
+    }
+
+    companion object {
+        private const val BROWSER_USER_AGENT =
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
     }
 }
