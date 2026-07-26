@@ -4,7 +4,6 @@ import org.springframework.stereotype.Component
 import uz.railway.ticketbot.search.SeatMode
 import uz.railway.ticketbot.subscription.SubscriptionStatus
 import uz.railway.ticketbot.subscription.TicketSubscription
-import java.time.ZoneOffset
 
 /** Builds the subscription card per spec section 23. */
 @Component
@@ -18,7 +17,7 @@ class SubscriptionMessageFormatter {
             appendLine("📅 Eng yaqin sana: hali topilmadi")
         }
         if (subscription.lastCheckedAt != null) {
-            appendLine("🔄 Oxirgi tekshiruv: ${FormatUtils.dateTimeWithSeconds(subscription.lastCheckedAt.atZone(ZoneOffset.UTC).toLocalDateTime())}")
+            appendLine("🔄 Oxirgi tekshiruv: ${FormatUtils.dateTimeWithSeconds(subscription.lastCheckedAt.atZone(FormatUtils.TASHKENT_ZONE).toLocalDateTime())}")
         } else {
             appendLine("🔄 Oxirgi tekshiruv: hali tekshirilmagan")
         }

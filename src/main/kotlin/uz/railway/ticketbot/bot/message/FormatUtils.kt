@@ -3,9 +3,13 @@ package uz.railway.ticketbot.bot.message
 import java.math.BigDecimal
 import java.time.LocalDate
 import java.time.LocalDateTime
+import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
 object FormatUtils {
+    /** Uzbekistan has a single fixed UTC+5 offset year-round (no DST), used for any timestamp shown to users. */
+    val TASHKENT_ZONE: ZoneId = ZoneId.of("Asia/Tashkent")
+
     private val DATE_FORMAT = DateTimeFormatter.ofPattern("dd.MM.yyyy")
     private val TIME_FORMAT = DateTimeFormatter.ofPattern("HH:mm")
     private val DATE_TIME_SECONDS_FORMAT = DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm:ss")

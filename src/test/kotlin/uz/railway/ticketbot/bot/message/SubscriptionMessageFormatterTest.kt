@@ -5,7 +5,6 @@ import uz.railway.ticketbot.subscription.SubscriptionStatus
 import uz.railway.ticketbot.subscription.TicketSubscription
 import java.time.Instant
 import java.time.LocalDate
-import java.time.ZoneOffset
 import kotlin.test.Test
 import kotlin.test.assertTrue
 
@@ -37,11 +36,12 @@ class SubscriptionMessageFormatterTest {
     )
 
     // The user needs second-level precision to tell whether monitoring is actually running right now.
+    // lastCheckedAt is stored as UTC Instant but must display in Uzbekistan's UTC+5 wall-clock time.
     @Test
-    fun `shows last checked time down to the second`() {
-        val checkedAt = LocalDate.of(2026, 7, 26).atTime(14, 3, 27).toInstant(ZoneOffset.UTC)
+    fun `shows last checked time down to the second in Tashkent time (UTC+5)`() {
+        val checkedAtUtc = Instant.parse("2026-07-26T09:03:27Z")
 
-        val text = formatter.format(baseSubscription(checkedAt))
+        val text = formatter.format(baseSubscription(checkedAtUtc))
 
         assertTrue(text.contains("🔄 Oxirgi tekshiruv: 26.07.2026 14:03:27"))
     }
