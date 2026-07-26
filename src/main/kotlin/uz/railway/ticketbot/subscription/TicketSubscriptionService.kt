@@ -1,6 +1,7 @@
 package uz.railway.ticketbot.subscription
 
 import com.fasterxml.jackson.databind.ObjectMapper
+import org.slf4j.LoggerFactory
 import org.springframework.data.domain.PageRequest
 import org.springframework.data.domain.Pageable
 import org.springframework.stereotype.Service
@@ -18,6 +19,7 @@ class TicketSubscriptionService(
     private val objectMapper: ObjectMapper,
     private val clock: Clock
 ) {
+    private val log = LoggerFactory.getLogger(TicketSubscriptionService::class.java)
 
     /**
      * Creates a subscription from an initial search outcome (spec section
@@ -155,10 +157,25 @@ class TicketSubscriptionService(
     }
 
     fun readFilters(entity: TicketSubscriptionEntity): TicketFilters =
-        objectMapper.readValue(entity.filtersJson, TicketFilters::class.java)
+        try {
+            objectMapper.readValue(entity.filtersJson, TicketFilters::class.java)
+        } catch (ex: Exception) {
+            log.warn("Failed to parse filters for subscription {}, falling back to defaults: {}", entity.id, ex.message)
+            TicketFilters.NONE
+        }
 
     fun readCurrentResult(entity: TicketSubscriptionEntity): TicketSearchResult? =
-        entity.currentResultJson?.let { objectMapper.readValue(it, TicketSearchResult::class.java) }
+        entity.currentResultJson?.let {
+            try {
+                objectMapper.readValue(it, TicketSearchResult::class.java)
+            } catch (ex: Exception) {
+                // Cached display data only (currentBestDate/status carry the real state) - a stale or
+                // incompatible blob must not break loading the rest of this subscription, or a whole
+                // user's subscription list. The next monitoring/search cycle overwrites it anyway.
+                log.warn("Failed to parse cached result for subscription {}: {}", entity.id, ex.message)
+                null
+            }
+        }
 
     fun toDomain(entity: TicketSubscriptionEntity): TicketSubscription = TicketSubscription(
         id = requireNotNull(entity.id),

@@ -103,4 +103,42 @@ class TicketSubscriptionServiceTest {
         assertEquals(SubscriptionStatus.COMPLETED, entity.status)
         assertEquals(fixedToday, entity.currentBestDate)
     }
+
+    // Regression: rows persisted before TicketSearchResult.lowerSeatNumbers was renamed to seatNumbers
+    // must still parse - the field is JSON-aliased for exactly this.
+    @Test
+    fun `readCurrentResult understands the pre-rename lowerSeatNumbers JSON field`() {
+        val legacyJson = """
+            {"fromStationCode":"TASHKENT","fromStationName":"Toshkent","toStationCode":"URGANCH",
+            "toStationName":"Urganch","date":"2026-07-28","trainNumber":"058","trainName":null,
+            "departureTime":"2026-07-28T20:15:00","arrivalTime":null,"carType":"Kupe","carNumber":"4",
+            "lowerSeatNumbers":[9,15],"minimumPrice":346000,"currency":"UZS","purchaseUrl":null}
+        """.trimIndent()
+        val entity = TicketSubscriptionEntity(
+            id = 1L, telegramUserId = 1L,
+            fromStationCode = "TASHKENT", fromStationName = "Toshkent",
+            toStationCode = "URGANCH", toStationName = "Urganch",
+            startDate = fixedToday, endDate = fixedToday.plusDays(30),
+            currentResultJson = legacyJson
+        )
+
+        val result = service.readCurrentResult(entity)
+
+        assertEquals(listOf(9, 15), result?.seatNumbers)
+    }
+
+    // Regression: a corrupted/incompatible cached result for one subscription must not blow up the
+    // whole list (readCurrentResult is only ever a display cache, never the source of truth).
+    @Test
+    fun `readCurrentResult returns null instead of throwing on unparseable JSON`() {
+        val entity = TicketSubscriptionEntity(
+            id = 1L, telegramUserId = 1L,
+            fromStationCode = "TASHKENT", fromStationName = "Toshkent",
+            toStationCode = "URGANCH", toStationName = "Urganch",
+            startDate = fixedToday, endDate = fixedToday.plusDays(30),
+            currentResultJson = "{ not valid json"
+        )
+
+        assertEquals(null, service.readCurrentResult(entity))
+    }
 }

@@ -1,5 +1,6 @@
 package uz.railway.ticketbot.search
 
+import com.fasterxml.jackson.annotation.JsonAlias
 import com.fasterxml.jackson.annotation.JsonIgnore
 import java.math.BigDecimal
 import java.security.MessageDigest
@@ -19,6 +20,7 @@ data class TicketSearchResult(
     val carType: String,
     val carNumber: String,
     /** Matching seat numbers for this offer - only odd (lower) ones when [TicketFilters.seatMode] is LOWER, all of them when ANY. */
+    @JsonAlias("lowerSeatNumbers") // accepts data persisted before the ANY seat mode was added
     val seatNumbers: List<Int>,
     val minimumPrice: BigDecimal?,
     val currency: String?,
