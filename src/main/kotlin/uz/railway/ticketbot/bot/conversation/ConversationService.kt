@@ -215,7 +215,7 @@ class ConversationService(
         val outcome = searchService.findNearestLowerSeat(request)
 
         val text = if (outcome.found) resultFormatter.formatFound(outcome) else resultFormatter.formatNotFound(outcome)
-        sender.send(user.chatId, text, Menus.watchOffer())
+        sender.send(user.chatId, text, Menus.watchOffer(), parseMode = if (outcome.found) "HTML" else null)
 
         // Kept around (state back to IDLE) so the "🔔 kuzatish" callback can build the subscription from it.
         userService.updateConversationState(user.telegramUserId, ConversationState.IDLE, objectMapper.writeValueAsString(outcome))

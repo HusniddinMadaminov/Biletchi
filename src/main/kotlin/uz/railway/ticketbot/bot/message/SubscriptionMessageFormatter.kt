@@ -18,7 +18,9 @@ class SubscriptionMessageFormatter {
             appendLine("📅 Eng yaqin sana: hali topilmadi")
         }
         if (subscription.lastCheckedAt != null) {
-            appendLine("🔄 Oxirgi tekshiruv: ${FormatUtils.time(subscription.lastCheckedAt.atZone(ZoneOffset.UTC).toLocalDateTime())}")
+            appendLine("🔄 Oxirgi tekshiruv: ${FormatUtils.dateTimeWithSeconds(subscription.lastCheckedAt.atZone(ZoneOffset.UTC).toLocalDateTime())}")
+        } else {
+            appendLine("🔄 Oxirgi tekshiruv: hali tekshirilmagan")
         }
         append("Holati: ${statusLabel(subscription.status)}")
     }

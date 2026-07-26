@@ -8,22 +8,35 @@ import uz.railway.ticketbot.search.TicketSearchOutcome
 @Component
 class SearchResultMessageFormatter {
 
+    /** Renders with Telegram HTML parse mode - callers must send this with parseMode = "HTML". */
     fun formatFound(outcome: TicketSearchOutcome): String {
         val request = outcome.request
         val isLowerOnly = request.filters.seatMode == SeatMode.LOWER
+        val trains = outcome.offers.groupBy { it.trainNumber }.entries.toList()
+
         val sb = StringBuilder()
-        sb.appendLine(if (isLowerOnly) "✅ Eng yaqin pastki joy topildi" else "✅ Eng yaqin bo'sh joy topildi")
+        sb.appendLine("✅ <b>${if (isLowerOnly) "Eng yaqin pastki joylar topildi" else "Eng yaqin bo'sh joylar topildi"}</b>")
         sb.appendLine()
-        sb.appendLine("${request.fromStationName} → ${request.toStationName}")
-        sb.appendLine("📅 ${FormatUtils.date(outcome.bestDate!!)}")
-        for (offer in outcome.offers) {
+        sb.appendLine("📍 <b>${FormatUtils.escapeHtml(request.fromStationName)} → ${FormatUtils.escapeHtml(request.toStationName)}</b>")
+        sb.appendLine("📅 <b>${FormatUtils.date(outcome.bestDate!!)}</b>")
+
+        trains.forEachIndexed { index, (trainNumber, offers) ->
             sb.appendLine()
-            sb.appendLine("🚆 ${offer.trainNumber}")
-            sb.appendLine("🕐 ${FormatUtils.time(offer.departureTime)}")
-            sb.appendLine("🚃 ${offer.carType}, ${offer.carNumber}-vagon")
-            sb.appendLine("💺 ${if (isLowerOnly) "Pastki joylar" else "Joylar"}: ${offer.seatNumbers.joinToString(", ")}")
-            sb.append("💰 ${FormatUtils.price(offer.minimumPrice, offer.currency)}")
+            sb.appendLine("🚆 <b>${index + 1}-poyezd: ${FormatUtils.escapeHtml(trainNumber)}</b>")
+            sb.appendLine("🕐 Jo'nash vaqti: <b>${FormatUtils.time(offers.first().departureTime)}</b>")
+            sb.appendLine()
+            for (offer in offers) {
+                sb.appendLine("┌ 🚃 <b>${offer.carNumber}-vagon — ${FormatUtils.carTypeUz(offer.carType)}</b>")
+                sb.appendLine("│ 💺 ${if (isLowerOnly) "Bo'sh pastki joylar" else "Bo'sh joylar"}: <b>${offer.seatNumbers.joinToString(", ")}</b>")
+                sb.appendLine("│ 💰 Narxi: <b>${FormatUtils.price(offer.minimumPrice, offer.currency)}</b>")
+                sb.appendLine("└────────────")
+                sb.appendLine()
+            }
+            if (index < trains.lastIndex) {
+                sb.appendLine("━━━━━━━━━━━━━━━━━━")
+            }
         }
+        sb.append("🎫 Chipta sotib olish uchun poyezd va vagonni tanlang.")
         return sb.toString()
     }
 

@@ -22,11 +22,12 @@ class TelegramMessageSender(
 ) {
     private val log = LoggerFactory.getLogger(TelegramMessageSender::class.java)
 
-    fun send(chatId: Long, text: String, keyboard: ReplyKeyboard? = null): Message? {
+    fun send(chatId: Long, text: String, keyboard: ReplyKeyboard? = null, parseMode: String? = null): Message? {
         val message = SendMessage.builder()
             .chatId(chatId)
             .text(text)
             .apply { if (keyboard != null) replyMarkup(keyboard) }
+            .apply { if (parseMode != null) parseMode(parseMode) }
             .build()
         return try {
             telegramClient.execute(message)
