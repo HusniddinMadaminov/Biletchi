@@ -122,7 +122,12 @@ class EticketRailwayClient(
     /**
      * Bootstraps (and caches) the XSRF-TOKEN cookie. Which response first
      * carries the Set-Cookie varies by deployment, so several candidate
-     * pages are tried in order.
+     * pages are tried in order. If none sets it, a self-generated UUID is
+     * used instead: the site's protection is the stateless double-submit
+     * pattern (its 403 message is "An expected CSRF token cannot be
+     * found"), where the server only checks that the cookie and the
+     * X-XSRF-TOKEN header carry the same value - a value the client itself
+     * minted is just as valid.
      */
     private suspend fun ensureXsrfToken(): String? {
         xsrfToken?.let { return it }
@@ -134,8 +139,10 @@ class EticketRailwayClient(
                 return fetched
             }
         }
-        log.warn("No XSRF-TOKEN cookie received from railway.uz (tried {})", XSRF_BOOTSTRAP_PATHS)
-        return null
+        val generated = java.util.UUID.randomUUID().toString()
+        xsrfToken = generated
+        log.info("No XSRF-TOKEN cookie offered by railway.uz; using a self-generated double-submit token")
+        return generated
     }
 
     private suspend fun fetchXsrfCookie(path: String): String? =
