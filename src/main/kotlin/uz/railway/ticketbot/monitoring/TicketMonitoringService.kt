@@ -2,6 +2,7 @@ package uz.railway.ticketbot.monitoring
 
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
+import uz.railway.ticketbot.config.TicketBotProperties
 import uz.railway.ticketbot.notification.NotificationService
 import uz.railway.ticketbot.railway.RailwayProvider
 import uz.railway.ticketbot.railway.exception.RailwayException
@@ -14,13 +15,14 @@ import java.time.Instant
 import java.time.LocalDate
 
 /**
- * Implements spec section 7 exactly: every 10 minutes, for each ACTIVE
- * subscription, only the window from startDate up to (currentBestDate - 1
- * day) - or the whole startDate..endDate range while nothing has been found
- * yet, per section 11 - is rescanned. A notification only ever fires for a
- * date strictly earlier than the current best (section 8); reaching
- * currentBestDate == startDate, or letting the whole window lapse, ends
- * monitoring (section 10).
+ * Implements spec section 7: on every scheduler tick (interval configured
+ * via ticketbot.monitoring.interval-cron / interval-minutes), for each
+ * ACTIVE subscription, only the window from startDate up to
+ * (currentBestDate - 1 day) - or the whole startDate..endDate range while
+ * nothing has been found yet, per section 11 - is rescanned. A notification
+ * only ever fires for a date strictly earlier than the current best
+ * (section 8); reaching currentBestDate == startDate, or letting the whole
+ * window lapse, ends monitoring (section 10).
  */
 @Service
 class TicketMonitoringService(
@@ -28,10 +30,11 @@ class TicketMonitoringService(
     private val railwayProvider: RailwayProvider,
     private val subscriptionService: TicketSubscriptionService,
     private val notificationService: NotificationService,
+    private val properties: TicketBotProperties,
     private val clock: Clock
 ) {
     private val log = LoggerFactory.getLogger(TicketMonitoringService::class.java)
-    private val checkInterval = Duration.ofMinutes(10)
+    private val checkInterval get() = Duration.ofMinutes(properties.monitoring.intervalMinutes)
 
     suspend fun checkDueSubscriptions(batchSize: Int) {
         val due = lockService.claimDueSubscriptions(batchSize)

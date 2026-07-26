@@ -41,7 +41,11 @@ ticketbot:
     max-period-days: 60
     date-batch-size: 4
   monitoring:
-    interval-cron: "0 */10 * * * *"
+    # Keep interval-cron and interval-minutes in sync - the cron drives when
+    # the scheduler ticks, interval-minutes drives when a subscription is
+    # next considered due.
+    interval-cron: "0 */5 * * * *"
+    interval-minutes: 5
     batch-size: 100
     manual-check-cooldown-seconds: 120
   scheduling:

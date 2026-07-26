@@ -15,7 +15,9 @@ data class TicketBotProperties(
     )
 
     data class Monitoring(
-        val intervalCron: String = "0 */10 * * * *",
+        val intervalCron: String = "0 */5 * * * *",
+        /** Must match [intervalCron]'s period - drives next-check scheduling, not the trigger itself. */
+        val intervalMinutes: Long = 5,
         val batchSize: Int = 100,
         val manualCheckCooldownSeconds: Long = 120
     )

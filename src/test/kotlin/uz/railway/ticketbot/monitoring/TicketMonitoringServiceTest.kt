@@ -9,6 +9,7 @@ import io.mockk.verify
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+import uz.railway.ticketbot.config.TicketBotProperties
 import uz.railway.ticketbot.notification.NotificationService
 import uz.railway.ticketbot.railway.RailwayProvider
 import uz.railway.ticketbot.railway.exception.RailwayTransientException
@@ -40,7 +41,7 @@ class TicketMonitoringServiceTest {
         railwayProvider = mockk()
         subscriptionService = mockk(relaxed = true)
         notificationService = mockk(relaxed = true)
-        service = TicketMonitoringService(lockService, railwayProvider, subscriptionService, notificationService, clock)
+        service = TicketMonitoringService(lockService, railwayProvider, subscriptionService, notificationService, TicketBotProperties(), clock)
     }
 
     private fun subscription(
