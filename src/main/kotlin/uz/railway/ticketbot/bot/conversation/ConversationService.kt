@@ -65,7 +65,7 @@ class ConversationService(
 
     private fun startNewSearch(user: TelegramUserEntity) {
         userService.updateConversationState(user.telegramUserId, ConversationState.WAITING_FROM_STATION, contextJson(ConversationContext()))
-        sender.send(user.chatId, "Qayerdan jo'nashni istaysiz? Bekat nomini yozing (masalan: Toshkent):")
+        sender.send(user.chatId, "Qayerdan jo'nashni istaysiz?\n\nBekat nomini kamida 3 ta harf bilan yozing (masalan: Tosh yoki Toshkent):")
     }
 
     fun sendHelp(user: TelegramUserEntity) {
@@ -97,7 +97,7 @@ class ConversationService(
     private suspend fun promptStationChoice(user: TelegramUserEntity, prefix: String, query: String) {
         val matches = stationService.search(query)
         if (matches.isEmpty()) {
-            sender.send(user.chatId, "Bekat topilmadi. Boshqa nom bilan qayta urinib ko'ring:")
+            sender.send(user.chatId, "Bekat topilmadi. Nomni to'liqroq yozib qayta urinib ko'ring (kamida 3 harf):")
             return
         }
         sender.send(user.chatId, "Mos bekatlardan birini tanlang:", Menus.stationChoices(prefix, matches))
@@ -113,7 +113,7 @@ class ConversationService(
         if (prefix == "from") {
             val updated = context.copy(fromStationCode = station.code, fromStationName = station.name)
             userService.updateConversationState(user.telegramUserId, ConversationState.WAITING_TO_STATION, contextJson(updated))
-            sender.send(user.chatId, "Qayerga borishni istaysiz? Bekat nomini yozing:")
+            sender.send(user.chatId, "Qayerga borishni istaysiz?\n\nBekat nomini kamida 3 ta harf bilan yozing:")
         } else {
             val updated = context.copy(toStationCode = station.code, toStationName = station.name)
             userService.updateConversationState(user.telegramUserId, ConversationState.WAITING_START_DATE, contextJson(updated))
