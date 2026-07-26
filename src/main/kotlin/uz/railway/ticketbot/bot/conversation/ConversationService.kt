@@ -82,13 +82,21 @@ class ConversationService(
 
             Bu bot eticket.railway.uz saytidan siz belgilagan yo'nalish bo'yicha bo'sh joy mavjud bo'lgan eng yaqin sanani topadi va shu sanadan oldinroq joy bo'shasa, sizga xabar beradi.
 
-            🎫 Yangi chipta - istalgan bo'sh joyni (toq yoki juft) qidiradi.
-            🛏 Pastki joy qidirish - faqat pastki (toq raqamli) joylarni qidiradi.
-
             Bot chiptani o'zi sotib olmaydi va pasport, karta yoki parol kabi ma'lumotlarni saqlamaydi - xarid uchun sizni rasmiy saytga yo'naltiradi.
 
             Buyruqlar:
             /start - botni qayta boshlash
+
+            Menyu:
+            🎫 Yangi chipta - istalgan bo'sh joyni (toq yoki juft) qidiradi
+            🛏 Pastki joy qidirish - faqat pastki (toq raqamli) joylarni qidiradi
+            📋 Kuzatuvlarim - faol va pauzadagi kuzatuvlaringiz ro'yxati
+            ❓ Yordam - shu matn
+
+            Har bir kuzatuv kartasida:
+            🔍 Hozir tekshirish - navbatni kutmasdan shu zahoti tekshiradi
+            ⏸ Pauza / ▶️ Davom ettirish - kuzatuvni to'xtatib turadi yoki qayta yoqadi
+            🗑 O'chirish - kuzatuvni butunlay bekor qiladi
             """.trimIndent(),
             Menus.mainMenu()
         )
