@@ -182,3 +182,29 @@ data class EticketTariff(
     val freeSeats: Int = 0,
     val tariff: BigDecimal? = null        // UZS
 )
+
+// ---- POST /api/v1/handbook/stations/list (verified) ----
+//
+// Request: {"name":"ta"} - a query under ~2 Latin characters was seen to
+// return 400 Bad Request, so callers should treat short/invalid queries as
+// "no live results" and fall back rather than surfacing the error.
+// Response: {"data":{"stations":[{"code":"2900000","name":"TASHKENT"},...]},"error":null}
+
+data class EticketStationSearchRequest(val name: String)
+
+@JsonIgnoreProperties(ignoreUnknown = true)
+data class EticketStationSearchResponse(
+    val data: EticketStationSearchData? = null,
+    val error: Any? = null
+)
+
+@JsonIgnoreProperties(ignoreUnknown = true)
+data class EticketStationSearchData(
+    val stations: List<EticketStationDto> = emptyList()
+)
+
+@JsonIgnoreProperties(ignoreUnknown = true)
+data class EticketStationDto(
+    val code: String = "",
+    val name: String = ""  // upper-case, e.g. "TASHKENT"
+)

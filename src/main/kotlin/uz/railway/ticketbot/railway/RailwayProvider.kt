@@ -12,6 +12,9 @@ import java.time.LocalDate
  */
 interface RailwayProvider {
 
+    /** Live station name search (spec sections 3.2/22 station picker), e.g. "tash" -> Tashkent stations. */
+    suspend fun searchStations(query: String): List<RailwayStation>
+
     suspend fun searchTrains(
         fromStationCode: String,
         toStationCode: String,

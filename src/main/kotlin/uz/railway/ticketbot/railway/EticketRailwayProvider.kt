@@ -30,6 +30,14 @@ class EticketRailwayProvider(
     private val log = LoggerFactory.getLogger(EticketRailwayProvider::class.java)
     private val finder = NearestLowerSeatFinder(botProperties.search.dateBatchSize)
 
+    override suspend fun searchStations(query: String): List<RailwayStation> {
+        val response = client.searchStations(query)
+        if (response.error != null) {
+            log.warn("railway.uz returned error for station search '{}': {}", query, response.error)
+        }
+        return response.data?.stations.orEmpty().map { RailwayStation(it.code, it.name) }
+    }
+
     override suspend fun searchTrains(fromStationCode: String, toStationCode: String, date: LocalDate): List<RailwayTrain> =
         listTrains(fromStationCode, toStationCode, date).map { summary ->
             RailwayTrain(

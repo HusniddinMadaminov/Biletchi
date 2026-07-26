@@ -9,6 +9,8 @@ import org.springframework.web.reactive.function.client.WebClientRequestExceptio
 import reactor.core.publisher.Mono
 import uz.railway.ticketbot.common.retry.TransientErrorRetry
 import uz.railway.ticketbot.config.RailwayProperties
+import uz.railway.ticketbot.railway.dto.EticketStationSearchRequest
+import uz.railway.ticketbot.railway.dto.EticketStationSearchResponse
 import uz.railway.ticketbot.railway.dto.EticketTrainDetailsRequest
 import uz.railway.ticketbot.railway.dto.EticketTrainDetailsResponse
 import uz.railway.ticketbot.railway.dto.EticketTrainsListRequest
@@ -51,6 +53,12 @@ class EticketRailwayClient(
 
     @Volatile
     private var xsrfToken: String? = null
+
+    suspend fun searchStations(query: String): EticketStationSearchResponse = post(
+        "/api/v1/handbook/stations/list",
+        EticketStationSearchRequest(query),
+        EticketStationSearchResponse::class.java
+    )
 
     suspend fun getTrainsList(
         depStationCode: String,

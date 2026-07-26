@@ -85,7 +85,7 @@ class ConversationService(
         )
     }
 
-    fun handleWizardText(user: TelegramUserEntity, state: ConversationState, text: String) {
+    suspend fun handleWizardText(user: TelegramUserEntity, state: ConversationState, text: String) {
         when (state) {
             ConversationState.WAITING_FROM_STATION -> promptStationChoice(user, "from", text)
             ConversationState.WAITING_TO_STATION -> promptStationChoice(user, "to", text)
@@ -94,7 +94,7 @@ class ConversationService(
         }
     }
 
-    private fun promptStationChoice(user: TelegramUserEntity, prefix: String, query: String) {
+    private suspend fun promptStationChoice(user: TelegramUserEntity, prefix: String, query: String) {
         val matches = stationService.search(query)
         if (matches.isEmpty()) {
             sender.send(user.chatId, "Bekat topilmadi. Boshqa nom bilan qayta urinib ko'ring:")
