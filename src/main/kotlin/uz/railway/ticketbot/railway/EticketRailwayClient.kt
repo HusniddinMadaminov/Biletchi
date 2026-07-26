@@ -119,34 +119,43 @@ class EticketRailwayClient(
         return mono.awaitSingle()
     }
 
-    /** Bootstraps (and caches) the XSRF-TOKEN cookie by hitting the site root. */
+    /**
+     * Bootstraps (and caches) the XSRF-TOKEN cookie. Which response first
+     * carries the Set-Cookie varies by deployment, so several candidate
+     * pages are tried in order.
+     */
     private suspend fun ensureXsrfToken(): String? {
         xsrfToken?.let { return it }
-        val fetched = webClient.get()
-            .uri("/")
+        for (path in XSRF_BOOTSTRAP_PATHS) {
+            val fetched = fetchXsrfCookie(path)
+            if (fetched != null) {
+                xsrfToken = fetched
+                log.info("Obtained XSRF token from railway.uz via GET {}", path)
+                return fetched
+            }
+        }
+        log.warn("No XSRF-TOKEN cookie received from railway.uz (tried {})", XSRF_BOOTSTRAP_PATHS)
+        return null
+    }
+
+    private suspend fun fetchXsrfCookie(path: String): String? =
+        webClient.get()
+            .uri(path)
             .headers { headers ->
                 headers.set("User-Agent", BROWSER_USER_AGENT)
                 headers.set("Accept-Language", "en")
+                headers.set("device-type", "BROWSER")
             }
             .exchangeToMono { response ->
                 val cookie = response.cookies()["XSRF-TOKEN"]?.firstOrNull()?.value
                 response.releaseBody().thenReturn(cookie ?: "")
             }
             .onErrorResume { ex ->
-                log.warn("Failed to bootstrap XSRF token from railway.uz: {}", ex.message)
+                log.warn("XSRF bootstrap GET {} failed: {}", path, ex.message)
                 Mono.just("")
             }
             .awaitSingle()
             .takeIf { it.isNotBlank() }
-
-        if (fetched != null) {
-            xsrfToken = fetched
-            log.info("Obtained XSRF token from railway.uz")
-        } else {
-            log.warn("No XSRF-TOKEN cookie received from railway.uz root page")
-        }
-        return fetched
-    }
 
     private fun classifyError(status: HttpStatusCode): Exception {
         val code = status.value()
@@ -160,5 +169,7 @@ class EticketRailwayClient(
     companion object {
         private const val BROWSER_USER_AGENT =
             "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
+
+        private val XSRF_BOOTSTRAP_PATHS = listOf("/", "/en/home", "/api/v1/line-runner")
     }
 }
