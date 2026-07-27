@@ -38,8 +38,19 @@ class TelegramUpdateHandler(
                 handle(update)
             } catch (ex: Exception) {
                 log.error("Failed to process Telegram update {}: {}", update.updateId, ex.message, ex)
+                notifyUserOfFailure(update)
             }
         }
+    }
+
+    /**
+     * Without this, an unhandled error (e.g. an SSL/network failure reaching railway.uz) left the user
+     * with silence - the message just seemed to vanish, with no way to tell the bot was having trouble.
+     * chatId is read straight off the raw update so this still works even if user resolution itself failed.
+     */
+    private fun notifyUserOfFailure(update: Update) {
+        val chatId = update.message?.chatId ?: update.callbackQuery?.message?.chatId ?: return
+        sender.send(chatId, "⚠️ Bot vaqtinchalik ish faoliyatida emas. Iltimos, birozdan so'ng qayta urinib ko'ring.")
     }
 
     private suspend fun handle(update: Update) {
