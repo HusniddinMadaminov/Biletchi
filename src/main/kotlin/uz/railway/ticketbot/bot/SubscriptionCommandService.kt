@@ -53,7 +53,7 @@ class SubscriptionCommandService(
         val message = if (subscription.status == SubscriptionStatus.COMPLETED) {
             "✅ Siz tanlagan eng birinchi sana uchun pastki joy topildi.\n\nKuzatuv yakunlandi."
         } else {
-            "🔔 Kuzatuv yoqildi. Har 10 daqiqada oldinroq sana borligini tekshirib turaman."
+            "🔔 Kuzatuv yoqildi. Har ${properties.monitoring.intervalMinutes} daqiqada oldinroq sana borligini tekshirib turaman."
         }
         sender.send(user.chatId, message, Menus.mainMenu())
     }
